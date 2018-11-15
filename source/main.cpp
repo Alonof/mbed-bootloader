@@ -89,6 +89,7 @@ BlockDevice *arm_uc_blockdevice = &sd;
 
 int main(void)
 {
+    printf("\n\r--------------Alon`s Boot Loader----------------\n\r");
     /* Use malloc to allocate uint64_t version number on the heap */
     heapVersion = (uint64_t *) malloc(sizeof(uint64_t));
     bootCounter = (uint8_t *) malloc(1);

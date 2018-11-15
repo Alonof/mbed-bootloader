@@ -20,6 +20,15 @@
 
 #include <stdint.h>
 
+typedef union {
+    uint8_t buffer[0x200];
+    struct 
+    {
+        uint32_t manifest_size;
+        uint8_t manifest_buffer[0x200 - sizeof(uint32_t)];
+    }info;
+}manifest_st;
+
 bool activeStorageInit(void);
 void activeStorageDeinit(void);
 

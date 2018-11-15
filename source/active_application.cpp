@@ -262,6 +262,7 @@ bool eraseActiveFirmware(uint32_t firmwareSize)
     return (result == 0);
 }
 
+uint8_t g_manifest[MBED_CONF_APP_APPLICATION_MANIFEST_PAGE_SIZE];
 bool writeActiveFirmwareHeader(arm_uc_firmware_details_t *details)
 {
     tr_debug("writeActiveFirmwareHeader");
@@ -273,8 +274,7 @@ bool writeActiveFirmwareHeader(arm_uc_firmware_details_t *details)
         const uint32_t pageSize = flash.get_page_size();
         const uint32_t programSize = (ARM_UC_INTERNAL_HEADER_SIZE_V2 + pageSize - 1)
                                      / pageSize * pageSize;
-        const uint32_t fw_metadata_hdr_size = \
-                                              getSectorAlignedSize(FIRMWARE_METADATA_HEADER_ADDRESS,
+        const uint32_t fw_metadata_hdr_size = getSectorAlignedSize(FIRMWARE_METADATA_HEADER_ADDRESS,
                                                                    ARM_UC_INTERNAL_HEADER_SIZE_V2);
 
         /* coverity[no_escape] */
@@ -307,7 +307,28 @@ bool writeActiveFirmwareHeader(arm_uc_firmware_details_t *details)
                                     FIRMWARE_METADATA_HEADER_ADDRESS,
                                     programSize);
 
-            result = (ret == 0);
+            if (ret == 0)
+            {
+
+#ifdef MANIFEST_DEBUG                
+                //Flash manifest to IAP
+                manifest_st *p_manifest = (manifest_st*)g_manifest;
+                printf("\n\r manifest size %lu \n\r Manifest Data:\n\r", p_manifest->info.manifest_size);
+                for (uint32_t index = 0; index < p_manifest->info.manifest_size ; index++)
+                {
+                    printf("0x%X ",p_manifest->info.manifest_buffer[index]);
+                }
+                printf("\n\r End manifest \n\r");
+#endif
+                uint32_t manifest_size = ( MBED_CONF_APP_APPLICATION_MANIFEST_PAGE_SIZE + pageSize - 1)
+                                        / pageSize * pageSize;
+
+                ret = flash.program(g_manifest,
+                                        FIRMWARE_METADATA_HEADER_ADDRESS + programSize,
+                                        MBED_CONF_APP_APPLICATION_MANIFEST_PAGE_SIZE);
+
+                result = (ret == 0);
+            }
         }
     }
 
