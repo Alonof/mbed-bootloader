@@ -107,11 +107,11 @@ int checkActiveApplication(arm_uc_firmware_details_t *details)
 
         /* calculate hash if header is valid and slot is not empty */
         if ((headerValid) && (details->size > 0)) {
-            uint32_t appStart = MBED_CONF_APP_APPLICATION_START_ADDRESS;
+            uint64_t appStart = MBED_CONF_APP_APPLICATION_START_ADDRESS;
 
             tr_debug("header start: 0x%08" PRIX32,
                      (uint32_t) FIRMWARE_METADATA_HEADER_ADDRESS);
-            tr_debug("app start: 0x%08" PRIX32, appStart);
+            tr_debug("app start: 0x%08" PRIX32, (uint32_t)appStart);
             tr_debug("app size: %" PRIu64, details->size);
 
             /* initialize hashing facility */
@@ -120,18 +120,18 @@ int checkActiveApplication(arm_uc_firmware_details_t *details)
             mbedtls_sha256_starts(&mbedtls_ctx, 0);
 
             uint8_t SHA[SIZEOF_SHA256] = { 0 };
-            uint32_t remaining = details->size;
+            uint64_t remaining = details->size;
             int32_t status = 0;
 
             /* read full image */
             while ((remaining > 0) && (status == 0)) {
                 /* read full buffer or what is remaining */
-                uint32_t readSize = (remaining > BUFFER_SIZE) ?
+                uint64_t readSize = (remaining > BUFFER_SIZE) ?
                                     BUFFER_SIZE : remaining;
 
                 /* read buffer using FlashIAP API for portability */
                 status = flash.read(buffer_array,
-                                    appStart + (details->size - remaining),
+                                    (uint32_t)(appStart + (details->size - remaining)),
                                     readSize);
 
                 /* update hash */
@@ -262,7 +262,19 @@ bool eraseActiveFirmware(uint32_t firmwareSize)
     return (result == 0);
 }
 
+typedef union {
+    uint8_t buffer[MBED_CONF_APP_APPLICATION_MANIFEST_PAGE_SIZE];
+    struct
+    {
+        uint32_t write_address; // Write address in IAP
+        uint32_t read_address;  //Read address of image from BlockDevice
+        uint32_t type;          //Type of image
+        uint32_t manifest_size; // D/L image manifest size
+        uint8_t manifest_buffer[MBED_CONF_APP_APPLICATION_MANIFEST_PAGE_SIZE - 4 * sizeof(uint32_t)];    //D/L umage manifest
+    }data;
+}image_manifest_st;
 uint8_t g_manifest[MBED_CONF_APP_APPLICATION_MANIFEST_PAGE_SIZE];
+
 bool writeActiveFirmwareHeader(arm_uc_firmware_details_t *details)
 {
     tr_debug("writeActiveFirmwareHeader");
@@ -306,32 +318,29 @@ bool writeActiveFirmwareHeader(arm_uc_firmware_details_t *details)
             int ret = flash.program(buffer_array,
                                     FIRMWARE_METADATA_HEADER_ADDRESS,
                                     programSize);
-
+#if 1
             if (ret == 0)
             {
-
-#ifdef MANIFEST_DEBUG                
                 //Flash manifest to IAP
-                manifest_st *p_manifest = (manifest_st*)g_manifest;
-                printf("\n\r manifest size %lu \n\r Manifest Data:\n\r", p_manifest->info.manifest_size);
-                for (uint32_t index = 0; index < p_manifest->info.manifest_size ; index++)
-                {
-                    printf("0x%X ",p_manifest->info.manifest_buffer[index]);
-                }
-                printf("\n\r End manifest \n\r");
-#endif
+                image_manifest_st *p_manifest = (image_manifest_st*)g_manifest;
+                tr_info("New Image Header: Write Address - %" PRIX32 ", \
+                        Read Address - %" PRIX32, p_manifest->data.write_address, \
+                        p_manifest->data.read_address);
+                tr_info("Manifest");
+                printBuffer(&p_manifest->data.manifest_buffer[0],\
+                            p_manifest->data.manifest_size);
+
                 uint32_t manifest_size = ( MBED_CONF_APP_APPLICATION_MANIFEST_PAGE_SIZE + pageSize - 1)
                                         / pageSize * pageSize;
 
                 ret = flash.program(g_manifest,
                                         FIRMWARE_METADATA_HEADER_ADDRESS + programSize,
-                                        MBED_CONF_APP_APPLICATION_MANIFEST_PAGE_SIZE);
-
-                result = (ret == 0);
+                                        manifest_size);
             }
+#endif
+            result = (ret == 0);
         }
     }
-
     return result;
 }
 

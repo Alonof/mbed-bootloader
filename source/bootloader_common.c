@@ -17,7 +17,7 @@
 // ----------------------------------------------------------------------------
 
 #include "bootloader_common.h"
-
+#include <stdio.h>
 /* buffer used in storage operations */
 uint8_t buffer_array[BUFFER_SIZE];
 
@@ -58,6 +58,29 @@ void printSHA256(const uint8_t SHA[SIZEOF_SHA256])
     }
 
     tr_info("SHA256: %s", buffer);
+}
+
+/**
+ * Helper function to print a buffer in a nice format.
+ * @param [in]  input buffer to print
+ * @param [in]  size of the input buffer
+ */
+void printBuffer(const uint8_t *input, uint32_t size)
+{
+    /* allocate space for string */
+    char * buffer = (char *)malloc(2 * size + 1);
+    if(buffer != NULL)
+    {
+        memset(buffer, 0, sizeof(buffer));
+        for (uint32_t index = 0; index < size; index++) {
+            
+            uint8_t value = input[index];
+            buffer[2 * index]     = hexTable[value >> 4];
+            buffer[2 * index + 1] = hexTable[value & 0x0F];
+        }
+        tr_info("Buffer: %s", buffer);
+        free(buffer);
+    }
 }
 
 void printProgress(uint32_t progress, uint32_t total)

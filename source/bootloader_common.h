@@ -51,6 +51,8 @@ void printSHA256(const uint8_t SHA[SIZEOF_SHA256]);
 
 void printProgress(uint32_t progress, uint32_t total);
 
+void printBuffer(const uint8_t *input, uint32_t size);
+
 #define MBED_BOOTLOADER_ASSERT(condition, ...) { \
     if (!(condition)) {                          \
         tr_error(__VA_ARGS__);                   \

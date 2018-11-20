@@ -72,3 +72,4 @@ mbed-cloud-client/ns-hal-pal/*
 mbed-cloud-client/sal-stack-nanostack-eventloop/*
 mbed-cloud-client/source/*
 mbed-cloud-client/certificate-enrollment-client/*
+mbed-os/components/802.15.4_RF/

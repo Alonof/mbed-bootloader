@@ -13,7 +13,7 @@
         "DISABLE_ERROR_DESCRIPTION=1",
         "ARM_UC_PROFILE_MBED_CLOUD_CLIENT=1",
         "ARM_UC_FEATURE_CRYPTO_PAL=0",
-        "ARM_UC_FEATURE_CRYPTO_MBEDTLS=1",
+        "ARM_UC_FEATURE_CRYPTO_MBEDTLS=1",        
         "Mutex=PlatformMutex"
     ],
     "config": {
@@ -36,6 +36,10 @@
         "flash-size": {
             "help": "Total size of internal flash. Only used in this config to help the definition of other macros.",
             "value": null
+        },
+        "application-manifest_page_size": {
+            "help": "Total size of internal flash. Only used in this config to help the definition of other macros.",
+            "value": "0x200"
         }
     },
     "target_overrides": {
@@ -46,18 +50,18 @@
             "update-client.storage-address"  : "(1024*1024*64)",
             "update-client.storage-size"     : "(1024*1024*2)",
             "update-client.storage-locations": 1,
-            "update-client.firmware-header-version": "2"
+            "update-client.firmware-header-version": "2"           
         },
         "K64F": {
             "flash-start-address"              : "0x0",
             "flash-size"                       : "(1024*1024)",
-            "nvstore.area_1_address"           : "(MBED_CONF_APP_FLASH_START_ADDRESS+32*1024)",
+            "nvstore.area_1_address"           : "(MBED_CONF_APP_FLASH_START_ADDRESS+100*1024)",
             "nvstore.area_1_size"              : "(4*1024)",
-            "nvstore.area_2_address"           : "(MBED_CONF_APP_FLASH_START_ADDRESS+36*1024)",
+            "nvstore.area_2_address"           : "(MBED_CONF_APP_FLASH_START_ADDRESS+104*1024)",
             "nvstore.area_2_size"              : "(4*1024)",
-            "update-client.application-details": "(MBED_CONF_APP_FLASH_START_ADDRESS+40*1024)",
-            "application-start-address"        : "(MBED_CONF_APP_FLASH_START_ADDRESS+41*1024)",
-            "max-application-size"             : "DEFAULT_MAX_APPLICATION_SIZE"
+            "update-client.application-details": "(MBED_CONF_APP_FLASH_START_ADDRESS+108*1024)",
+            "application-start-address"        : "(MBED_CONF_APP_FLASH_START_ADDRESS+109*1024)",
+            "max-application-size"             : "DEFAULT_MAX_APPLICATION_SIZE"            
         },
         "K66F": {
             "flash-start-address"              : "0x0",
