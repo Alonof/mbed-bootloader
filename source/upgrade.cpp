@@ -183,7 +183,7 @@ static  bool writeActiveFirmware(image_manifest_st * p_Header)
     /* round down the read size to a multiple of the page size
     that still fits inside the main buffer.
       */
-    const uint32_t pageSize = flash.get_page_size();    
+    const uint32_t pageSize = flash.get_page_size();
     uint32_t MaxReadSize = ROUND_DOWN_TO_PAGE_SIZE(BUFFER_SIZE , pageSize);
     uint32_t ImageSizeInPageSize = ROUND_UP_TO_PAGE_SIZE(p_Header->ImageSize +\
                                     MBED_CONF_APP_APPLICATION_APPLICATION_DETAILS_SIZE, pageSize);
