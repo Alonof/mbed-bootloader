@@ -25,6 +25,7 @@ mbed-os/components/storage/*
 mbed-os/features/frameworks/mbed-client-cli/*
 mbed-os/features/lwipstack/*
 mbed-os/features/nfc/*
+mbed-os/features/storage/nvstore/*
 mbed-os/targets/TARGET_STM/TARGET_STM32F4/TARGET_STM32F437xG/TARGET_UBLOX_C030/onboard_modem_api.c
 mbed-os/targets/TARGET_STM/TARGET_STM32F4/TARGET_STM32F437xG/TARGET_UBLOX_C030/onboard_modem_api.h
 mbed-os/targets/TARGET_STM/TARGET_STM32F4/TARGET_STM32F437xG/TARGET_UBLOX_C030/min_battery_voltage.c

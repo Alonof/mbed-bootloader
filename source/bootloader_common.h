@@ -26,28 +26,38 @@
 extern "C" {
 #endif
 
-#define SIZEOF_SHA256  (256/8)
-
 #ifndef BUFFER_SIZE
 #define BUFFER_SIZE (16 * 1024)
 #endif
 
 #define CLEAR_EVENT 0xFFFFFFFF
 
-enum {
-    RESULT_SUCCESS,
-    RESULT_ERROR,
-    RESULT_EMPTY
-};
+#define BOOT_MIN(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
 
-extern uint8_t buffer_array[BUFFER_SIZE];
+typedef struct {
+    uint32_t WriteAddress; // Write address in IAP
+    uint32_t JumpAddress; // Jump Address to main app
+    uint64_t ImageSize;    // Image length
+    uint32_t ReadAddress;  //Read address of image from BlockDevice
+    uint32_t type;          //Type of image
+    uint32_t HashedDataOffset;    //Hashed Data offset in manifest
+    uint32_t HashedDataLength;    //Hashed data length
+    uint32_t SigOffset;          //Sig Data offset in manifest
+    uint32_t SigLength;          //Sig Length
+    uint32_t applicationHashOffset; // Offset for binary payload hash from manifest        
+    uint32_t ManifestSize;      // D/L image manifest size
+    uint8_t  ManifestBuffer[0x1B0];    //D/L image manifest
+    uint32_t MagicWord; // Write address in IAP - Jump Address
+}__attribute__((packed)) image_manifest_st;
+
 
 extern uint32_t event_callback;
-extern const char hexTable[16];
+
 
 void arm_ucp_event_handler(uint32_t event);
-
-void printSHA256(const uint8_t SHA[SIZEOF_SHA256]);
 
 void printProgress(uint32_t progress, uint32_t total);
 
@@ -104,7 +114,7 @@ void printBuffer(const uint8_t *input, uint32_t size);
 #ifdef MBED_CONF_MINIMAL_PRINTF_ENABLE_FLOATING_POINT
 #define tr_flush(x)
 #else
-#define tr_flush(x)          fflush(stdout)
+#define tr_flush(x)         fflush(stdout)
 #endif
 
 #endif

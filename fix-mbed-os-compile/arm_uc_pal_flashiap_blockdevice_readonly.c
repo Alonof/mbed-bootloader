@@ -15,8 +15,8 @@ ARM_UC_PAAL_UPDATE ARM_UCP_FLASHIAP_BLOCKDEVICE_READ_ONLY =
     .Finalize                   = 0,
     .Read                       = ARM_UC_PAL_BlockDevice_Read,
     .Activate                   = 0,
-    .GetActiveFirmwareDetails   = ARM_UC_PAL_FlashIAP_GetActiveDetails,
-    .GetFirmwareDetails         = ARM_UC_PAL_BlockDevice_GetFirmwareDetails,
+    .GetActiveFirmwareDetails   = 0,//ARM_UC_PAL_FlashIAP_GetActiveDetails,
+    .GetFirmwareDetails         = 0,
     .GetInstallerDetails        = 0
 };
 
