@@ -31,7 +31,7 @@ static FlashIAP flash;
 
 /* buffer used in storage operations */
 uint8_t buffer_array[BUFFER_SIZE];
-
+uint8_t EraseBuffer[BUFFER_SIZE];
 #define ROUND_UP_TO_PAGE_SIZE(size, page_size)  ((size + pageSize - 1) / pageSize) * pageSize;
 #define ROUND_DOWN_TO_PAGE_SIZE(size, page_size)    ((size / page_size) * page_size)
 
@@ -149,6 +149,7 @@ static void PrintHeaderDetails( image_manifest_st * p_header)
 
 static bool activeStorageInit(void)
 {
+    memset(EraseBuffer, 0xFF, sizeof(EraseBuffer));
     int rc = flash.init();
     return (rc == 0);
 }
@@ -159,20 +160,40 @@ static  void activeStorageDeinit(void)
 }
 
 static int eraseSector(uint32_t addr)
-{//TODO verify erase with 0xFFFFFFF
+{
     int result = -1;
-    uint32_t erase_address = addr;    
-    uint32_t sector_size = flash.get_sector_size(erase_address);
+    const uint32_t pageSize = flash.get_page_size();
+    uint32_t MaxReadSize = ROUND_DOWN_TO_PAGE_SIZE(BUFFER_SIZE , pageSize);
+    uint32_t sector_size = flash.get_sector_size(addr);
+    uint32_t LeftOnSector = sector_size, CompareLength = 0;
+    bool DeleteSector = false;
 
-    tr_info("Erasing from 0x%08" PRIX32 " to 0x%08" PRIX32 ,
-            erase_address, erase_address + sector_size);
 
-    result = flash.erase(erase_address, sector_size);
-    if (result != 0) {
-        tr_debug("Erasing from 0x%08" PRIX32 " to 0x%08" PRIX32 " failed with retval %i",
-                    erase_address, erase_address + sector_size, result);
+    while(LeftOnSector > 0)
+    {
+        CompareLength = BOOT_MIN(LeftOnSector, MaxReadSize);
+        if(memcmp((void *)addr, (void *)EraseBuffer, CompareLength))
+        {
+            DeleteSector = true;
+            break;
+        }
+        LeftOnSector -= CompareLength;
     }
 
+    if(DeleteSector)
+    {
+        result = flash.erase(addr, sector_size);
+        tr_debug("Erasing from 0x%08" PRIX32 " to 0x%08" PRIX32 ,\
+                addr, addr + sector_size);
+        if (result != 0) {
+            tr_debug("Erasing from 0x%08" PRIX32 " to 0x%08" PRIX32 " failed with retval %i",
+                        addr, addr + sector_size, result);
+        }
+    }
+    else
+    {
+        tr_debug("Skip Earsing");
+    }
     return result;
 }
 

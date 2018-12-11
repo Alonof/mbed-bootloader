@@ -48,51 +48,51 @@ void arm_ucp_event_handler(uint32_t event)
  */
 void printBuffer(const uint8_t *input, uint32_t size)
 {    
-    // /* allocate space for string */
-    // char * buffer = (char *)malloc(2 * size + 1);
-    // if(buffer != NULL)
-    // {
-    //     memset(buffer, 0, sizeof(buffer));
-    //     for (uint32_t index = 0; index < size; index++) {
+    /* allocate space for string */
+    char * buffer = (char *)malloc(2 * size + 1);
+    if(buffer != NULL)
+    {
+        memset(buffer, 0, sizeof(buffer));
+        for (uint32_t index = 0; index < size; index++) {
             
-    //         uint8_t value = input[index];
-    //         buffer[2 * index]     = hexTable[value >> 4];
-    //         buffer[2 * index + 1] = hexTable[value & 0x0F];
-    //     }
-    //     tr_info("Buffer: %s", buffer);
-    //     free(buffer);
-    // }
+            uint8_t value = input[index];
+            buffer[2 * index]     = hexTable[value >> 4];
+            buffer[2 * index + 1] = hexTable[value & 0x0F];
+        }
+        tr_info("Buffer: %s", buffer);
+        free(buffer);
+    }
 }
 
 void printProgress(uint32_t progress, uint32_t total)
 {
-    // static uint8_t last_percent = 0;
-    // /* use 70 characters for the progress bar */
+    static uint8_t last_percent = 0;
+    /* use 70 characters for the progress bar */
     
-    // uint8_t percent = progress * 70 / total;
+    uint8_t percent = progress * 70 / total;
 
-    // if (last_percent != percent) {
-    //     last_percent = percent;
-    //     tr_trace("\r[BOOT] [");
+    if (last_percent != percent) {
+        last_percent = percent;
+        tr_trace("\r[BOOT] [");
 
-    //     /* print + for progress or a space otherwise */
-    //     for (uint8_t index = 0; index < 70; index++) {
-    //         if (index <= percent) 
-    //         {                
-    //             tr_trace("+");                
-    //         } else {
-    //             tr_trace(" ");
-    //         }
-    //     }
+        /* print + for progress or a space otherwise */
+        for (uint8_t index = 0; index < 70; index++) {
+            if (index <= percent) 
+            {                
+                tr_trace("+");                
+            } else {
+                tr_trace(" ");
+            }
+        }
 
-    //     /* finish progress bar with a newline once complete */
-    //     if (progress >= total) {
-    //         tr_trace("]\r\n");            
-    //     } else {
-    //         tr_trace("]");
+        /* finish progress bar with a newline once complete */
+        if (progress >= total) {
+            tr_trace("]\r\n");            
+        } else {
+            tr_trace("]");
 
-    //         /* explicitly flush debug channel, usually this is triggered by \n */
-    //         tr_flush();
-    //     }
-    // }
+            /* explicitly flush debug channel, usually this is triggered by \n */
+            tr_flush();
+        }
+    }
 }
