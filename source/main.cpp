@@ -29,6 +29,8 @@
 #include "bootloader_common.h"
 #include "upgrade.h"
 
+#include "OEM_functions.h"
+
 /* use a cut down version of ARM_UCP_FLASHIAP_BLOCKDEVICE to reduce
    binary size if ARM_UC_USE_PAL_BLOCKDEVICE is set and not running tests */
 #if defined(ARM_UC_USE_PAL_BLOCKDEVICE) && (ARM_UC_USE_PAL_BLOCKDEVICE==1) && \
@@ -117,9 +119,9 @@ int main(void)
             tr_info("No firmwere was found in device, Clearing Hint and reseting");
         }
         //Clear Hint from non volatile memory
-        #define HINT 0x0000000020000001
-        uint8_t * Hint = (uint8_t *)HINT;
-        *Hint = 0;
+//        #define HINT 0x0000000020000001
+//        uint8_t * Hint = (uint8_t *)HINT;
+        set_application_hint(0X00);
     }
     //Reset device -> jump to ROM boot
     boot_reset();
