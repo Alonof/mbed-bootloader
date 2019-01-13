@@ -27,16 +27,8 @@
 #include "update-client-paal/arm_uc_paal_update.h"
 
 #include "bootloader_common.h"
-#include "upgrade.h"
+#include "excuteFlashScript.h"
 
-#include "OEM_functions.h"
-
-/* use a cut down version of ARM_UCP_FLASHIAP_BLOCKDEVICE to reduce
-   binary size if ARM_UC_USE_PAL_BLOCKDEVICE is set and not running tests */
-#if defined(ARM_UC_USE_PAL_BLOCKDEVICE) && (ARM_UC_USE_PAL_BLOCKDEVICE==1) && \
-    (!defined(BOOTLOADER_POWER_CUT_TEST) || (BOOTLOADER_POWER_CUT_TEST != 1))
-#define MBED_CLOUD_CLIENT_UPDATE_STORAGE ARM_UCP_FLASHIAP_BLOCKDEVICE_READ_ONLY
-#endif
 
 #ifdef MBED_CLOUD_CLIENT_UPDATE_STORAGE
 extern ARM_UC_PAAL_UPDATE MBED_CLOUD_CLIENT_UPDATE_STORAGE;
@@ -72,6 +64,7 @@ BlockDevice *arm_uc_blockdevice = &sd;
 
 __attribute__((used)) void boot_reset( void )
 {
+    tr_info("\n\r--------------RESET----------------\n\r");
 	#define RESET_MASK_FOR_CORTEX_M_SERIES	0x5fa0004
 
 	volatile unsigned int * AIRCR_REG = (volatile unsigned int *)(0xE000ED0C);  //This register address is true for the Cortex M family
@@ -81,48 +74,29 @@ __attribute__((used)) void boot_reset( void )
         }
 }
 
+/**
+ * @brief   Main Entry function for apply image
+ *          1. Search if there are unfinished flash script if yes complete the script
+ *          2. If no Program New Flash Script
+ *          3. Reset
+ * @return int 
+ */
 int main(void)
 {
-    bool ret = false;
+
     tr_info("\n\r--------------Apply Image----------------\n\r");
 
-    /* Set PAAL Update implementation before initializing Firmware Manager */
-    ARM_UCP_SetPAALUpdate(&MBED_CLOUD_CLIENT_UPDATE_STORAGE);
-
-    /* Initialize PAL */
-    arm_uc_error_t ucp_result = ARM_UCP_Initialize(arm_ucp_event_handler);
-    if(ucp_result.code != ERR_NONE)
+    //Search for unfinished script
+    applyScriptEntry_st* lastEntry= isLastScriptDone();
+    if(lastEntry != NULL)
     {
-         tr_error("ARM_UCP_Initialize faild to init"); 
+        executeFlashScript(lastEntry);
     }
     else
-    {
-        /*************************************************************************/
-        /* Update                                                                */
-        /*************************************************************************/
-        
-        /* Try to update firmware from journal */
-        ret = upgradeApplicationFromStorage();
-        if(ret)
-        {
-            uint32_t app_start_addr = MBED_CONF_APP_APPLICATION_START_ADDRESS;
-            uint32_t app_stack_ptr = *((uint32_t *)(MBED_CONF_APP_APPLICATION_JUMP_ADDRESS + 0));
-            uint32_t app_jump_addr = *((uint32_t *)(MBED_CONF_APP_APPLICATION_JUMP_ADDRESS + 4));
-
-            tr_info("Application's start address: 0x%" PRIX32, app_start_addr);
-            tr_info("Application's jump address: 0x%" PRIX32, app_jump_addr);
-            tr_info("Application's stack address: 0x%" PRIX32, app_stack_ptr);
-            tr_info("Reseting Device...\r\n");
-        }
-        else
-        {
-            tr_info("No firmwere was found in device, Clearing Hint and reseting");
-        }
-        //Clear Hint from non volatile memory
-//        #define HINT 0x0000000020000001
-//        uint8_t * Hint = (uint8_t *)HINT;
-        set_application_hint(0X00);
+    {//Execute new script
+        newFlashScriptProtocol();
     }
+
     //Reset device -> jump to ROM boot
     boot_reset();
     
@@ -130,4 +104,5 @@ int main(void)
     for (;;) {
         __WFI();
     }
+    return 1;
 }

@@ -53,9 +53,7 @@ typedef struct {
     uint32_t MagicWord; // Write address in IAP - Jump Address
 }__attribute__((packed)) image_manifest_st;
 
-
 extern uint32_t event_callback;
-
 
 void arm_ucp_event_handler(uint32_t event);
 

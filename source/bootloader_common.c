@@ -21,6 +21,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* buffer used in storage operations */
+uint8_t buffer_array[BUFFER_SIZE];
+uint8_t EraseBuffer[BUFFER_SIZE];
+
 /* variable for exposing the most recent event */
 uint32_t event_callback = CLEAR_EVENT;
 

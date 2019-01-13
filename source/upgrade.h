@@ -20,4 +20,4 @@
  * Find suitable update candidate and copy firmware into active region
  * @return true if the active firmware region is valid.
  */
-bool upgradeApplicationFromStorage(void);
+//bool upgradeApplicationFromStorage(void);
