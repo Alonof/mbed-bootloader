@@ -70,11 +70,10 @@ typedef struct
     uint8_t opCode;
     uint8_t mbrSize;
     uint16_t journalSize;
-    uint8_t minWriteSize;
-    uint8_t minEraseSize;
+    uint8_t minWriteSize; //2^n
     uint8_t sectorTuples;
     sectorTable_st tableTuples[10];
-}journalMbrRecord_st;
+}__attribute__((packed))journalMbrRecord_st;
 
 /**
  * @brief return value for verify erase function 

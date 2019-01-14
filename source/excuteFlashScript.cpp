@@ -125,7 +125,6 @@ void executeFlashScript(applyScriptEntry_st * flashScriptAddr)
     }
 }
 
-
 applyScriptEntry_st* isLastScriptDone(void)
 {
     tr_info("isLastScriptDone");
@@ -259,23 +258,26 @@ bool bufferInitJournal(applyScriptEntry_st * entry)
     journalMbrRecord_st buffer = {0};
     buffer.sectorTuples = fillSectorSizeTable(buffer.tableTuples);
     buffer.opCode = entry->fromAddress[0];
-    buffer.mbrSize =  ROUND_UP_TO_PAGE_SIZE(7 + buffer.sectorTuples * sizeof(sectorTable_st), internalGetPageSize());
+    buffer.mbrSize =  ROUND_UP_TO_PAGE_SIZE(6 + buffer.sectorTuples * sizeof(sectorTable_st), internalGetPageSize()); //Header plus table
     buffer.journalSize = entry->fromAddress[2];
     buffer.minWriteSize = internalGetPageSize();
-    buffer.minEraseSize = 1;
 
     //edit new entry
     applyScriptEntry_st entryMBR;
     memcpy(&entryMBR ,entry, sizeof(applyScriptEntry_st));
-    entryMBR.fromAddress = (uint8_t*)&buffer; //set from pointer to new buffer;
-    entryMBR.info.opCode = WRITE;
-    entryMBR.info.bufferLength =  buffer.mbrSize;
+    entryMBR.fromAddress = (uint8_t*)&buffer; //set from pointer to new buffer;    
+
+    //Erase the flash journal before writing the MBR 
+    entryMBR.info.opCode = ERASE;
+    entryMBR.info.bufferLength = buffer.journalSize; //set entry to delete entire journal
+    bufferErase(&entryMBR, false);
 
     //Write to start of MBR record  in internal flash    
+    entryMBR.info.opCode = OVERWRITE;
+    entryMBR.info.bufferLength =  buffer.mbrSize; 
     internalFlashProgram(&entryMBR);
-
     //Write to end of MBR record
-    entryMBR.toAddress = entryMBR.fromAddress + entryMBR.fromAddress[1] - entryMBR.info.bufferLength;
+    entryMBR.toAddress = entryMBR.fromAddress + buffer.journalSize - entryMBR.info.bufferLength;
     internalFlashProgram(&entryMBR);
     return true;
 }
