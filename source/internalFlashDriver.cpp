@@ -13,15 +13,25 @@
 extern applyFunctionsPtr_st entryFunctions;
 extern uint8_t buffer_array[BUFFER_SIZE];
 extern uint8_t EraseBuffer[BUFFER_SIZE];
+static arm_uc_buffer_t mainBuffer;
+static uint16_t pageSize_g;
 static FlashIAP flash;
+static bool internalWriteOnSingalSector(applyScriptEntry_st * entry, 
+                                        arm_uc_buffer_t* Buffer,
+                                        uint32_t WriteCounter,
+                                        uint32_t* counterWriteOnSector);
 
 bool internalFlashInit(void)
 {
     static int rc = 1;
     if(rc == 1)
-    {
-        memset(EraseBuffer, 0xFF, sizeof(EraseBuffer));
-        rc = flash.init();        
+    {        
+        memset(EraseBuffer, 0xFF, sizeof(EraseBuffer));          
+        rc = flash.init(); 
+        pageSize_g = flash.get_page_size();    
+        mainBuffer.size_max = ROUND_DOWN_TO_PAGE_SIZE(BUFFER_SIZE, pageSize_g);
+        mainBuffer.size = 0;
+        mainBuffer.ptr = buffer_array;
     }
     return (rc == 0);
 }
@@ -40,9 +50,8 @@ bool internalFlashRead(applyScriptEntry_st * entry, size_t Offset, arm_uc_buffer
 bool internalFlashEraseSector(uint32_t addr)
 {
     tr_info("internalFlashEraseSector");
-    int result = -1;
-    const uint32_t pageSize = flash.get_page_size();
-    uint32_t MaxReadSize = ROUND_DOWN_TO_PAGE_SIZE(BUFFER_SIZE , pageSize);
+    int result = -1;    
+    uint32_t MaxReadSize = ROUND_DOWN_TO_PAGE_SIZE(BUFFER_SIZE , pageSize_g);
     uint32_t sector_size = flash.get_sector_size(addr);
     uint32_t LeftOnSector = sector_size, CompareLength = 0;
     bool DeleteSector = false;
@@ -74,118 +83,124 @@ bool internalFlashEraseSector(uint32_t addr)
     return (result == 0 ? 1 : 0);
 }
 
+
 bool internalFlashProgram(applyScriptEntry_st * entry)
 {
-    tr_info("internalFlashProgram");
-    const uint32_t pageSize = flash.get_page_size();
-    if(!IS_ALIGNED_TO_ADDRESS((uint32_t)entry->toAddress, pageSize))
+    tr_info("internalFlashProgram");    
+    if(!IS_ALIGNED_TO_ADDRESS((uint32_t)entry->toAddress, pageSize_g))
     {//Write address is not aligned to page size return Error
     	tr_info("No align to page address");
         return false;
     }
 
-    int ret = false;
-    verifyErase_e status = ERASE_ERROR;
-
-    const uint32_t MaxReadSize = ROUND_DOWN_TO_PAGE_SIZE(BUFFER_SIZE , pageSize);
-    uint32_t ImageSizeInPageSize = ROUND_UP_TO_PAGE_SIZE(entry->info.bufferLength, pageSize);
-    uint32_t reminder = ImageSizeInPageSize - entry->info.bufferLength;
-    uint32_t SectorSize, SectorOffset = 0, LeftToWriteOnSector, WriteCounter = 0, ReadSize = 0;
-    uint32_t sectorStart = 0, counterWriteOnSector = 0;
-    bool SectorDeleted = false;
-    arm_uc_buffer_t Buffer = {
-            .size_max = MaxReadSize,
-            .size     = 0,
-            .ptr      = buffer_array
-        };
-
+    uint32_t ImageSizeInPageSize = ROUND_UP_TO_PAGE_SIZE(entry->info.bufferLength, pageSize_g);   
+    uint32_t WriteCounter = 0, counterWriteOnSector = 0;
     while((ImageSizeInPageSize - WriteCounter) > 0) //Writing entire program sector by sector
-    {
-    	sectorStart = getSectorStart((uint32_t)entry->toAddress + WriteCounter);
-        SectorSize = flash.get_sector_size((uint32_t)entry->toAddress + WriteCounter);
-        SectorOffset = ((uint32_t)entry->toAddress + WriteCounter - sectorStart);
-        SectorDeleted = false;
-        //Calculate how much left on sector (need to consider that start address is not aligned to sector start)
-        LeftToWriteOnSector = BOOT_MIN(SectorSize - SectorOffset, ImageSizeInPageSize - WriteCounter);
-        counterWriteOnSector = LeftToWriteOnSector; //Keep how much shall be write to the sector
+    {        
         tr_debug("WriteCounter %" PRIX32 ", Write Sector %" PRIX32 ", Sector Size %" PRId32 ,\
-        		WriteCounter, (uint32_t)entry->toAddress + WriteCounter , SectorSize);
+        		WriteCounter, (uint32_t)entry->toAddress + WriteCounter);
 
-        while( LeftToWriteOnSector > 0) //writing data inside a sector
+        if(internalWriteOnSingalSector(entry, &mainBuffer, WriteCounter, &counterWriteOnSector))
         {
-            tr_debug("Left on sector  0x%" PRIX32 , LeftToWriteOnSector);
-            ReadSize = BOOT_MIN(LeftToWriteOnSector, MaxReadSize);  //Choose the min size between Sector size and maximum buffer, the writing is up to one sector!
-
-            if((LeftToWriteOnSector < MaxReadSize))
-            {
-            	memset(Buffer.ptr, -1, MaxReadSize);
-            	Buffer.size = ReadSize - reminder;
-            	ret = entryFunctions.ReadFrom(entry, WriteCounter + SectorOffset, &Buffer);
-            }
-            else
-            {
-            	Buffer.size = ReadSize;
-            	ret = entryFunctions.ReadFrom(entry, WriteCounter + SectorOffset, &Buffer);
-            }
-
-            if (ret)
-            {
-                if(SectorDeleted == false) //If sector not delete need to check each write
-                {
-                    status = internalVerifyErase((applyOpCode_e)entry->info.opCode, (uint8_t*)sectorStart\
-                    		, WriteCounter + SectorOffset, Buffer.ptr, ReadSize);
-                    if(status == ERASE_DATA)
-                    {
-                        tr_debug("ERASE_DATA");
-                        // Erase sector and start from the beginning of the sector
-                        internalFlashEraseSector(getSectorStart((uint32_t)entry->toAddress + WriteCounter)); 
-                        //Reset all Sector Offsets
-                        SectorOffset = ((uint32_t)entry->toAddress + WriteCounter - \
-                                        getSectorStart((uint32_t)entry->toAddress + WriteCounter));
-                        LeftToWriteOnSector = BOOT_MIN(SectorSize - SectorOffset, ImageSizeInPageSize - WriteCounter);
-                        SectorDeleted = true;
-                        continue;
-                    }
-                    else if (status == EQUAL_DATA)
-                    {//Skip erase Flash data is equal to buffer data no need in write nor erase
-                    	tr_debug("EQUAL_DATA");
-                        SectorOffset += ReadSize;
-                        LeftToWriteOnSector -= ReadSize;
-                        continue;
-                    }
-                    else if ((status == ERASE_ERROR) || (status == OVERWRITE_ERROR))
-                    {
-                    	tr_debug("ERASE_ERROR");
-                        return false; //Cannot perform overwrite
-                    }
-                    tr_debug("OVERWRITE_DATA");
-                    //else Do Nothing OVERWRITE_DATA continue to program the flash
-                }
-                tr_debug("Sector Offset  0x%" PRIX32 " Read Size %" PRIX32 " Write Address %" PRIX32 ,\
-                            SectorOffset, ReadSize, sectorStart + WriteCounter + SectorOffset);
-                ret = flash.program(Buffer.ptr, sectorStart + WriteCounter + SectorOffset, ReadSize);
-                if(ret == 0)
-                {
-                    SectorOffset += ReadSize;
-                    LeftToWriteOnSector -= ReadSize;
-                }
-                else
-                {
-                        tr_error("Error writing to flash");
-                        return false;
-                }                
-            }
-            else
-            {
-                 tr_error("Read Error");
-                 return false;
-            }
-        }//While inside sector 
-        WriteCounter += counterWriteOnSector;
+            WriteCounter += counterWriteOnSector;
+        }
+        else
+        {
+            return false;
+        } 
 #if defined(SHOW_PROGRESS_BAR) && SHOW_PROGRESS_BAR == 1
                 printProgress(WriteCounter, ImageSizeInPageSize);
 #endif
     }//While sector by sector
+    return true;
+}
+
+static bool internalWriteOnSingalSector(applyScriptEntry_st * entry, 
+                                        arm_uc_buffer_t* Buffer,
+                                        uint32_t WriteCounter,
+                                        uint32_t* counterWriteOnSector)
+{
+    bool ret = false;
+    uint32_t ReadSize = 0;
+    uint32_t SectorSize = flash.get_sector_size((uint32_t)entry->toAddress + WriteCounter);
+    uint32_t sectorStart = getSectorStart((uint32_t)entry->toAddress + WriteCounter);
+    uint32_t SectorOffset = ((uint32_t)entry->toAddress + WriteCounter - sectorStart);
+    uint32_t ImageSizeInPageSize = ROUND_UP_TO_PAGE_SIZE(entry->info.bufferLength, pageSize_g);
+    uint32_t reminder = ImageSizeInPageSize - entry->info.bufferLength;
+    //Calculate how much left on sector (need to consider that start address is not aligned to sector start)
+    uint32_t LeftToWriteOnSector = BOOT_MIN(SectorSize - SectorOffset, ImageSizeInPageSize - WriteCounter); 
+    bool SectorDeleted = false;
+    
+    *counterWriteOnSector = LeftToWriteOnSector; //Keep how much shall be write on the sector
+    while( LeftToWriteOnSector > 0) //writing data inside a sector
+    {
+        tr_debug("Left on sector  0x%" PRIX32 , LeftToWriteOnSector);
+        ReadSize = BOOT_MIN(LeftToWriteOnSector, Buffer->size_max);  //Choose the min size between Sector size and maximum buffer, the writing is up to one sector!
+        if((LeftToWriteOnSector < Buffer->size_max))
+        {
+            memset(Buffer->ptr, -1, Buffer->size_max);
+            Buffer->size = ReadSize - reminder;
+            ret = entryFunctions.ReadFrom(entry, WriteCounter + SectorOffset, Buffer);
+        }
+        else
+        {
+            Buffer->size = ReadSize;
+            ret = entryFunctions.ReadFrom(entry, WriteCounter + SectorOffset, Buffer);
+        }
+
+        if (ret)
+        {
+            if(SectorDeleted == false) //If sector not delete need to check each write
+            {
+                verifyErase_e status = ERASE_ERROR;
+                status = internalVerifyErase((applyOpCode_e)entry->info.opCode, (uint8_t*)sectorStart,\
+                         WriteCounter + SectorOffset, Buffer->ptr, ReadSize);
+                if(status == ERASE_DATA)
+                {
+                    tr_debug("ERASE_DATA");
+                    // Erase sector and start from the beginning of the sector
+                    internalFlashEraseSector(sectorStart);
+                    //Reset all Sector Offsets
+                    SectorOffset = ((uint32_t)entry->toAddress + WriteCounter - sectorStart);
+                    LeftToWriteOnSector = BOOT_MIN(SectorSize - SectorOffset, ImageSizeInPageSize - WriteCounter);
+                    SectorDeleted = true;
+                    continue;
+                }
+                else if (status == EQUAL_DATA)
+                {//Skip erase Flash data is equal to buffer data no need in write nor erase
+                    tr_debug("EQUAL_DATA");
+                    SectorOffset += ReadSize;
+                    LeftToWriteOnSector -= ReadSize;
+                    continue;
+                }
+                else if ((status == ERASE_ERROR) || (status == OVERWRITE_ERROR))
+                {
+                    tr_debug("ERASE_ERROR");
+                    return false; //Cannot perform overwrite
+                }
+                tr_debug("OVERWRITE_DATA");
+                //else Do Nothing OVERWRITE_DATA continue to program the flash
+            }
+            tr_debug("Sector Offset  0x%" PRIX32 " Read Size %" PRIX32 " Write Address %" PRIX32 ,\
+                        SectorOffset, ReadSize, sectorStart + WriteCounter + SectorOffset);
+            ret = flash.program(Buffer->ptr, sectorStart + WriteCounter + SectorOffset, ReadSize);
+            if(ret == 0)
+            {
+                SectorOffset += ReadSize;
+                LeftToWriteOnSector -= ReadSize;
+            }
+            else
+            {
+                    tr_error("Error writing to flash");
+                    return false;
+            }
+        }
+        else
+        {
+                tr_error("Read Error");
+                return false;
+        }
+    }//While inside sector
     return true;
 }
 

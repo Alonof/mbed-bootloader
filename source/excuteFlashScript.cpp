@@ -314,7 +314,7 @@ bool bufferInitJournal(applyScriptEntry_st * entry)
     buffer.opCode = entry->fromAddress[0];
     buffer.mbrSize =  ROUND_UP_TO_PAGE_SIZE(6 + buffer.sectorTuples * sizeof(sectorTable_st), internalGetPageSize()); //Header plus table
     buffer.journalSize = entry->fromAddress[2] << 8 | (0xFF & entry->fromAddress[3]);
-    buffer.minWriteSize = internalGetPageSize();
+    buffer.minWriteSize = __builtin_ctz(internalGetPageSize());
 
     //edit new entry
     applyScriptEntry_st entryMBR;
