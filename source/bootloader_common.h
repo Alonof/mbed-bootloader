@@ -22,6 +22,8 @@
 #include <stdint.h>
 #include "bootloader_config.h"
 
+#define TEST
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -79,7 +81,7 @@ void printBuffer(const uint8_t *input, uint32_t size);
 #ifdef tr_debug
 #undef tr_debug
 #endif
-#if 0
+#if 1
 #define tr_debug(fmt, ...)   printf("[DBG ] " fmt "\r\n", ##__VA_ARGS__)
 #else
 #define tr_debug(...)

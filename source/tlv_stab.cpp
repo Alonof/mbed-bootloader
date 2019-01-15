@@ -6,9 +6,21 @@
 
 static uint8_t * ret = NULL;
 
+uint8_t page_buffer[8] = {0xFF ,0xFF, 0xFF ,0xFF, 0xFF ,0xFF, 0xFF ,0xFF};
 uint8_t* journalGetNextFree(void)
 {
-    return ret;
+	uint8_t* nextFree = (uint8_t* )(0x1000);
+	int i = 0;
+
+	for(i = 0; i < 100; i ++)
+	{
+		if(memcmp((void*)nextFree, page_buffer, sizeof(page_buffer)) == 0)
+		{
+			return nextFree;
+		}
+		nextFree += sizeof(page_buffer);
+	}
+    return NULL;
 }
 
 uint8_t journalGetHead(uint8_t ** entry)

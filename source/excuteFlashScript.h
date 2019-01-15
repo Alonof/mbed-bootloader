@@ -60,9 +60,16 @@ typedef struct {
 
 typedef struct
 {
+	uint8_t type;
+	uint8_t length;
+	applyScriptEntry_st entries[9];
+}__attribute__((packed))flashScriptHandler_st;
+
+typedef struct
+{
     uint16_t    numberOfSectors;
     uint32_t    sectorSize;
-}sectorTable_st;
+}__attribute__((packed))sectorTable_st;
 
 
 typedef struct
@@ -199,9 +206,9 @@ typedef struct {
  *      3. calls executeFlashScript
  * 
  * \input 	     void
- * \return       void
+ * \return       true - success else fail
  */ 
-void newFlashScriptProtocol(void);
+bool newFlashScriptProtocol(void);
 
 /**
  * \brief        Write and Execute the scrip commands
@@ -215,7 +222,7 @@ void newFlashScriptProtocol(void);
  * \input       flashScriptAddr - script address
  * \return      void
  */ 
-void executeFlashScript(applyScriptEntry_st * flashScriptAddr);
+bool executeFlashScript(applyScriptEntry_st * flashScriptAddr);
 
 /**
  * @brief search for unfinished scripts 

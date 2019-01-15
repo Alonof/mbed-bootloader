@@ -111,5 +111,5 @@ uint32_t internalGetFlashSize(void);
  *                            OVERWRITE_DATA Can preform Overwrite on sector
  *                            ERASE_ERROR     Overwriting is impossible return error
  */
-verifyErase_e internalVerifyErase(applyScriptEntry_st * entry, size_t Offset, uint8_t  *buffer, size_t length);
+verifyErase_e internalVerifyErase(applyOpCode_e command, uint8_t *sectorStart, size_t Offset, uint8_t  *buffer, size_t length);
 #endif //INTERNAL_FLASH_DRIVER_H

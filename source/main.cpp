@@ -65,6 +65,11 @@ BlockDevice *arm_uc_blockdevice = &sd;
 __attribute__((used)) void boot_reset( void )
 {
     tr_info("\n\r--------------RESET----------------\n\r");
+#ifdef TEST
+    for (;;) {
+        __WFI();
+    }
+#endif
 	#define RESET_MASK_FOR_CORTEX_M_SERIES	0x5fa0004
 
 	volatile unsigned int * AIRCR_REG = (volatile unsigned int *)(0xE000ED0C);  //This register address is true for the Cortex M family

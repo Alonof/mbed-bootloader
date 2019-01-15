@@ -17,8 +17,8 @@ static FlashIAP flash;
 
 bool internalFlashInit(void)
 {
-    static int rc = 0;
-    if(rc != 0)
+    static int rc = 1;
+    if(rc == 1)
     {
         memset(EraseBuffer, 0xFF, sizeof(EraseBuffer));
         rc = flash.init();        
@@ -33,7 +33,7 @@ void internalFlashDeinit(void)
 
 bool internalFlashRead(applyScriptEntry_st * entry, size_t Offset, arm_uc_buffer_t * buffer)
 {
-    memcpy(buffer->ptr, entry->fromAddress, buffer->size_max);
+    memcpy(buffer->ptr, entry->fromAddress, buffer->size);
     return true;
 }
 
@@ -69,25 +69,29 @@ bool internalFlashEraseSector(uint32_t addr)
     }
     else
     {
-        tr_debug("Skip Earsing");
+        tr_debug("Skip Erasing");
     }
-    return result;
+    return (result == 0 ? 1 : 0);
 }
 
 bool internalFlashProgram(applyScriptEntry_st * entry)
 {
     tr_info("internalFlashProgram");
-    int ret = false;
-    verifyErase_e status = ERASE_ERROR;
     const uint32_t pageSize = flash.get_page_size();
     if(!IS_ALIGNED_TO_ADDRESS((uint32_t)entry->toAddress, pageSize))
-    {//Write addr is not aligned to page size return Error
-        return ret;
+    {//Write address is not aligned to page size return Error
+    	tr_info("No align to page address");
+        return false;
     }
+
+    int ret = false;
+    verifyErase_e status = ERASE_ERROR;
 
     const uint32_t MaxReadSize = ROUND_DOWN_TO_PAGE_SIZE(BUFFER_SIZE , pageSize);
     uint32_t ImageSizeInPageSize = ROUND_UP_TO_PAGE_SIZE(entry->info.bufferLength, pageSize);
-    uint32_t SectorSize, SectorOffset = 0, LeftToWriteOnSector, WriteCounter = 0, ReadSize = 0;    
+    uint32_t reminder = ImageSizeInPageSize - entry->info.bufferLength;
+    uint32_t SectorSize, SectorOffset = 0, LeftToWriteOnSector, WriteCounter = 0, ReadSize = 0;
+    uint32_t sectorStart = 0, counterWriteOnSector = 0;
     bool SectorDeleted = false;
     arm_uc_buffer_t Buffer = {
             .size_max = MaxReadSize,
@@ -97,32 +101,43 @@ bool internalFlashProgram(applyScriptEntry_st * entry)
 
     while((ImageSizeInPageSize - WriteCounter) > 0) //Writing entire program sector by sector
     {
-        memset(Buffer.ptr, -1, MaxReadSize);
+    	sectorStart = getSectorStart((uint32_t)entry->toAddress + WriteCounter);
         SectorSize = flash.get_sector_size((uint32_t)entry->toAddress + WriteCounter);
-        SectorOffset = ((uint32_t)entry->toAddress + WriteCounter - \
-                       getSectorStart((uint32_t)entry->toAddress + WriteCounter));
+        SectorOffset = ((uint32_t)entry->toAddress + WriteCounter - sectorStart);
         SectorDeleted = false;
         //Calculate how much left on sector (need to consider that start address is not aligned to sector start)
-        LeftToWriteOnSector = BOOT_MIN(SectorSize - SectorOffset, ImageSizeInPageSize - WriteCounter);        
-        tr_debug("WriteCounter %" PRIX32 , WriteCounter);
-        tr_debug("Write Sector %" PRIX32 " Sector Size %" PRId32 ,\
-                (uint32_t)entry->toAddress + WriteCounter , SectorSize);
+        LeftToWriteOnSector = BOOT_MIN(SectorSize - SectorOffset, ImageSizeInPageSize - WriteCounter);
+        counterWriteOnSector = LeftToWriteOnSector; //Keep how much shall be write to the sector
+        tr_debug("WriteCounter %" PRIX32 ", Write Sector %" PRIX32 ", Sector Size %" PRId32 ,\
+        		WriteCounter, (uint32_t)entry->toAddress + WriteCounter , SectorSize);
 
         while( LeftToWriteOnSector > 0) //writing data inside a sector
         {
             tr_debug("Left on sector  0x%" PRIX32 , LeftToWriteOnSector);
             ReadSize = BOOT_MIN(LeftToWriteOnSector, MaxReadSize);  //Choose the min size between Sector size and maximum buffer, the writing is up to one sector!
-            Buffer.size = ReadSize;          
-            ret = entryFunctions.ReadFrom(entry, WriteCounter + SectorOffset, &Buffer);
+
+            if((LeftToWriteOnSector < MaxReadSize))
+            {
+            	memset(Buffer.ptr, -1, MaxReadSize);
+            	Buffer.size = ReadSize - reminder;
+            	ret = entryFunctions.ReadFrom(entry, WriteCounter + SectorOffset, &Buffer);
+            }
+            else
+            {
+            	Buffer.size = ReadSize;
+            	ret = entryFunctions.ReadFrom(entry, WriteCounter + SectorOffset, &Buffer);
+            }
+
             if (ret)
             {
                 if(SectorDeleted == false) //If sector not delete need to check each write
                 {
-                    status = internalVerifyErase(entry, WriteCounter + SectorOffset, Buffer.ptr, ReadSize);                    
+                    status = internalVerifyErase((applyOpCode_e)entry->info.opCode, (uint8_t*)sectorStart\
+                    		, WriteCounter + SectorOffset, Buffer.ptr, ReadSize);
                     if(status == ERASE_DATA)
                     {
-                        tr_debug("Delete Sector");
-                        // Erase sector and start from the begining of the sector
+                        tr_debug("ERASE_DATA");
+                        // Erase sector and start from the beginning of the sector
                         internalFlashEraseSector(getSectorStart((uint32_t)entry->toAddress + WriteCounter)); 
                         //Reset all Sector Offsets
                         SectorOffset = ((uint32_t)entry->toAddress + WriteCounter - \
@@ -133,20 +148,23 @@ bool internalFlashProgram(applyScriptEntry_st * entry)
                     }
                     else if (status == EQUAL_DATA)
                     {//Skip erase Flash data is equal to buffer data no need in write nor erase
+                    	tr_debug("EQUAL_DATA");
                         SectorOffset += ReadSize;
                         LeftToWriteOnSector -= ReadSize;
                         continue;
                     }
-                    else if (status == ERASE_ERROR)
+                    else if ((status == ERASE_ERROR) || (status == OVERWRITE_ERROR))
                     {
-                        return false; //Cannot prefrom overwrite
+                    	tr_debug("ERASE_ERROR");
+                        return false; //Cannot perform overwrite
                     }
+                    tr_debug("OVERWRITE_DATA");
                     //else Do Nothing OVERWRITE_DATA continue to program the flash
                 }
                 tr_debug("Sector Offset  0x%" PRIX32 " Read Size %" PRIX32 " Write Address %" PRIX32 ,\
-                            SectorOffset, ReadSize, (uint32_t)entry->toAddres + WriteCounter + SectorOffset);                   
-                ret = flash.program(Buffer.ptr, (uint32_t)entry->toAddress + WriteCounter + SectorOffset, ReadSize);                                                          
-                if(ret)
+                            SectorOffset, ReadSize, sectorStart + WriteCounter + SectorOffset);
+                ret = flash.program(Buffer.ptr, sectorStart + WriteCounter + SectorOffset, ReadSize);
+                if(ret == 0)
                 {
                     SectorOffset += ReadSize;
                     LeftToWriteOnSector -= ReadSize;
@@ -163,7 +181,7 @@ bool internalFlashProgram(applyScriptEntry_st * entry)
                  return false;
             }
         }//While inside sector 
-        WriteCounter += SectorOffset;
+        WriteCounter += counterWriteOnSector;
 #if defined(SHOW_PROGRESS_BAR) && SHOW_PROGRESS_BAR == 1
                 printProgress(WriteCounter, ImageSizeInPageSize);
 #endif
@@ -171,25 +189,24 @@ bool internalFlashProgram(applyScriptEntry_st * entry)
     return true;
 }
 
-verifyErase_e internalVerifyErase(applyScriptEntry_st * entry, size_t Offset, uint8_t  *buffer, size_t length)
+verifyErase_e internalVerifyErase(applyOpCode_e command, uint8_t *sectorStart, size_t Offset, uint8_t  *buffer, size_t length)
 {
     tr_info("bufferVerifyErase");
     verifyErase_e ret = ERASE_ERROR;
 
-    switch((applyOpCode_e)entry->info.opCode)
+    switch(command)
     {
         case OVERWRITE:
             ret = OVERWRITE_DATA;
             for(size_t i = 0; i < length; i++)
             {
-                if((*(entry->toAddress + Offset + i) & *(buffer + i)) != *(buffer + i))
+                if((*(sectorStart + Offset + i) & *(buffer + i)) != *(buffer + i))
                 {
-                    ret = OVERWRITE_ERROR;
-                    break;
+                    return OVERWRITE_ERROR;
                 }
             }
         case WRITE://No Break!
-            if(!memcmp((void *)(entry->toAddress + Offset), buffer,  length))
+            if(!memcmp((void *)(sectorStart + Offset), buffer,  length))
             {
                 ret = EQUAL_DATA; //data is equal
             }
