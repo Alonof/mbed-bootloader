@@ -29,6 +29,12 @@
 #include "bootloader_common.h"
 #include "excuteFlashScript.h"
 
+//#include "OEM_functions.h"
+//stub function
+static void set_application_hint(int a)
+{
+    return;
+}
 
 #ifdef MBED_CLOUD_CLIENT_UPDATE_STORAGE
 extern ARM_UC_PAAL_UPDATE MBED_CLOUD_CLIENT_UPDATE_STORAGE;
